@@ -795,8 +795,12 @@ class PolicyIteration(MDP):
         #
         Ppolicy, Rpolicy = self._computePpolicyPRpolicy()
         # V = PR + gPV  => (I-gP)V = PR  => V = inv(I-gP)* PR
-        self.V = _sp.linalg.solve(
-            (_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy)
+        if not _sp.issparse(Ppolicy):
+            self.V = _np.linalg.solve(
+                (_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy)
+        else:
+            self.V = _sp.linalg.spsolve(
+                (_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy)
 
     def run(self):
         # Run the policy iteration algorithm.
