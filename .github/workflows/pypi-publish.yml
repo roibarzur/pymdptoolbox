@@ -9,14 +9,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: pypi-publish
-      uses: pypa/gh-action-pypi-publish@v1.1.0
+    - name: Publish Python Package
+      uses: mariamrf/py-package-publish-action@v1.0.0
       with:
-        # PyPI user
-        user: ${{ secrets.PYPI_USERNAME }}
-        # Password for your PyPI user or an access token
-        password: ${{ secrets.PYPI_PASSWORD }}
-        # The repository URL to use
-        #repository_url: # optional
-        # The target directory for distribution
-        packages_dir: ''
+        python_version: '3.6.0'
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
