@@ -19,4 +19,4 @@ jobs:
         # The repository URL to use
         #repository_url: # optional
         # The target directory for distribution
-        #packages_dir: # optional, default is dist
+        packages_dir: ''
