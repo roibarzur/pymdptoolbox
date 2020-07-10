@@ -617,12 +617,12 @@ class PolicyIteration(MDP):
     (0, 0, 0)
     """
 
-    def __init__(self, transitions, reward, discount, policy0=None,
+    def __init__(self, transitions, reward, discount, policy0=None, epsilon=0.01,
                  max_iter=1000, eval_type=0, skip_check=False):
         # Initialise a policy iteration MDP.
         #
         # Set up the MDP, but don't need to worry about epsilon values
-        MDP.__init__(self, transitions, reward, discount, None, max_iter,
+        MDP.__init__(self, transitions, reward, discount, epsilon, max_iter,
                      skip_check=skip_check)
         # Check if the user has supplied an initial policy. If not make one.
         if policy0 is None:
@@ -678,27 +678,55 @@ class PolicyIteration(MDP):
         # Ppolicy(SxS)  = transition matrix for policy
         # PRpolicy(S)   = reward matrix for policy
         #
-        Ppolicy = _np.empty((self.S, self.S))
-        Rpolicy = _np.zeros(self.S)
-        for aa in range(self.A):  # avoid looping over S
-            # the rows that use action a.
-            ind = (self.policy == aa).nonzero()[0]
-            # if no rows use action a, then no need to assign this
-            if ind.size > 0:
-                try:
+        if not _sp.issparse(self.P[0]):
+            Ppolicy = _np.empty((self.S, self.S))
+            Rpolicy = _np.zeros(self.S)
+            for aa in range(self.A):  # avoid looping over S
+                # the rows that use action a.
+                ind = (self.policy == aa).nonzero()[0]
+                # if no rows use action a, then no need to assign this
+                if ind.size > 0:
+                    try:
+                        Ppolicy[ind, :] = self.P[aa][ind, :]
+                    except ValueError:
+                        print('error, this should not happen')
+                        Ppolicy[ind, :] = self.P[aa][ind, :].todense()
+                    # PR = self._computePR() # an apparently uneeded line, and
+                    # perhaps harmful in this implementation c.f.
+                    # mdp_computePpolicyPRpolicy.m
+                    Rpolicy[ind] = self.R[aa][ind]
+            # self.R cannot be sparse with the code in its current condition, but
+            # it should be possible in the future. Also, if R is so big that its
+            # a good idea to use a sparse matrix for it, then converting PRpolicy
+            # from a dense to sparse matrix doesn't seem very memory efficient
+            #if type(self.R) is _sp.csr_matrix:
+            #    Rpolicy = _sp.csr_matrix(Rpolicy)
+
+        else:
+            Ppolicy = _sp.csr_matrix((self.S, self.S))
+            Rpolicy = _np.zeros(self.S)
+            #'''
+            for aa in range(self.A):  # avoid looping over S
+                Ppolicy += self.P[aa].multiply(_np.expand_dims(self.policy == aa, axis=1))
+                Rpolicy += _np.multiply(self.R[aa], self.policy == aa)
+            #'''
+            #for i in range(self.S):
+            #    Ppolicy[i, :] = self.P[self.policy[i]][i, :]
+            #    Rpolicy[i] = self.R[self.policy[i]][i]
+            '''
+            for aa in range(self.A):  # avoid looping over S
+                print(aa)
+                # the rows that use action a.
+                ind = (self.policy == aa).nonzero()[0]
+                # if no rows use action a, then no need to assign this
+                if ind.size > 0:
                     Ppolicy[ind, :] = self.P[aa][ind, :]
-                except ValueError:
-                    Ppolicy[ind, :] = self.P[aa][ind, :].todense()
-                # PR = self._computePR() # an apparently uneeded line, and
-                # perhaps harmful in this implementation c.f.
-                # mdp_computePpolicyPRpolicy.m
-                Rpolicy[ind] = self.R[aa][ind]
-        # self.R cannot be sparse with the code in its current condition, but
-        # it should be possible in the future. Also, if R is so big that its
-        # a good idea to use a sparse matrix for it, then converting PRpolicy
-        # from a dense to sparse matrix doesn't seem very memory efficient
-        if type(self.R) is _sp.csr_matrix:
-            Rpolicy = _sp.csr_matrix(Rpolicy)
+                    # PR = self._computePR() # an apparently uneeded line, and
+                    # perhaps harmful in this implementation c.f.
+                    # mdp_computePpolicyPRpolicy.m
+                    Rpolicy[ind] = self.R[aa][ind]
+            '''
+
         # self.Ppolicy = Ppolicy
         # self.Rpolicy = Rpolicy
         return (Ppolicy, Rpolicy)
@@ -772,6 +800,7 @@ class PolicyIteration(MDP):
                     print(_MSG_STOP_MAX_ITER)
 
         self.V = policy_V
+        return itr
 
     def _evalPolicyMatrix(self):
         # Evaluate the value function of the policy using linear equations.
@@ -795,8 +824,14 @@ class PolicyIteration(MDP):
         #
         Ppolicy, Rpolicy = self._computePpolicyPRpolicy()
         # V = PR + gPV  => (I-gP)V = PR  => V = inv(I-gP)* PR
-        self.V = _sp.linalg.solve(
-            (_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy)
+        if not _sp.issparse(Ppolicy):
+            self.V = _np.linalg.solve(
+                (_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy)
+        else:
+            self.V = _sp.linalg.spsolve(
+                (_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy, use_umfpack=True)
+
+        assert _np.isfinite(self.V).all()
 
     def run(self):
         # Run the policy iteration algorithm.
@@ -804,6 +839,8 @@ class PolicyIteration(MDP):
 
         while True:
             self.iter += 1
+
+            Vprev = self.V.copy()
             # these _evalPolicy* functions will update the classes value
             # attribute
             if self.eval_type == "matrix":
@@ -825,6 +862,10 @@ class PolicyIteration(MDP):
             if n_different == 0:
                 if self.verbose:
                     print(_MSG_STOP_UNCHANGING_POLICY)
+                break
+            elif _util.getSpan(self.V - Vprev) < self.epsilon:
+                if self.verbose:
+                    print(_MSG_STOP_EPSILON_OPTIMAL_POLICY)
                 break
             elif self.iter == self.max_iter:
                 if self.verbose:
@@ -896,7 +937,7 @@ class PolicyIterationModified(PolicyIteration):
         # being calculated here which doesn't need to be. The only thing that
         # is needed from the PolicyIteration class is the _evalPolicyIterative
         # function. Perhaps there is a better way to do it?
-        PolicyIteration.__init__(self, transitions, reward, discount, None,
+        PolicyIteration.__init__(self, transitions, reward, discount, None, epsilon,
                                  max_iter, 1, skip_check=skip_check)
 
         # PolicyIteration doesn't pass epsilon to MDP.__init__() so we will
@@ -921,6 +962,7 @@ class PolicyIterationModified(PolicyIteration):
         # Run the modified policy iteration algorithm.
 
         self._startRun()
+        self.valueIterations = 0
 
         while True:
             self.iter += 1
@@ -941,7 +983,8 @@ class PolicyIterationModified(PolicyIteration):
                     self.setSilent()
                     is_verbose = True
 
-                self._evalPolicyIterative(self.V, self.epsilon, self.max_iter)
+                iterations = self._evalPolicyIterative(self.V, self.epsilon, self.max_iter)
+                self.valueIterations += iterations
 
                 if is_verbose:
                     self.setVerbose()
@@ -1355,7 +1398,7 @@ class ValueIteration(MDP):
                      skip_check=skip_check)
 
         # initialization of optional arguments
-        if initial_value == 0:
+        if _np.isscalar(initial_value) and initial_value == 0:
             self.V = _np.zeros(self.S)
         else:
             assert len(initial_value) == self.S, "The initial value must be " \
