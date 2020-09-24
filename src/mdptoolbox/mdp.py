@@ -828,7 +828,7 @@ class PolicyIteration(MDP):
             self.V = _np.linalg.solve(
                 (_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy)
         else:
-            self.V = _sp.linalg.spsolve((_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy, use_umfpack=True)
+            self.V = _sp.linalg.spsolve((_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy)
 
     def run(self):
         # Run the policy iteration algorithm.
