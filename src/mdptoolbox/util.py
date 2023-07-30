@@ -174,8 +174,11 @@ def isNonNegative(matrix):
             return True
     except (NotImplementedError, AttributeError, TypeError):
         try:
-            if (matrix.data >= 0).all():
+            if not isspmatrix_lil(matrix) and (matrix.data >= 0).all():
                 return True
+            elif isspmatrix_lil(matrix):
+                if all(all(val >= 0 for val in row) for row in matrix.data):
+                    return True
         except AttributeError:
             matrix = _np.array(matrix)
             if (matrix.data >= 0).all():
