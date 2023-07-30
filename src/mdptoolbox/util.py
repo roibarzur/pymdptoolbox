@@ -54,6 +54,7 @@ Available functions
 # POSSIBILITY OF SUCH DAMAGE.
 
 import numpy as _np
+from scipy.sparse import isspmatrix_lil
 
 import mdptoolbox.error as _error
 
