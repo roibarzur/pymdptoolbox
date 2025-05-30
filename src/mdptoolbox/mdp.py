@@ -829,7 +829,7 @@ class PolicyIteration(MDP):
                 (_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy)
         else:
             # self.V = _sp.linalg.spsolve((_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy)
-            self.V = _sp.linalg.qmr((_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy, atol=1e-3 * self.epsilon, rtol=1e-5, x0=self.V)[0]
+            self.V = _sp.linalg.bicg((_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy, atol=1e-3 * self.epsilon, rtol=1e-5, x0=self.V)[0]
     def run(self):
         # Run the policy iteration algorithm.
         self._startRun()
