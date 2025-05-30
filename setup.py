@@ -2,7 +2,7 @@
 from setuptools import setup, find_packages
 
 setup(name="pymdptoolbox-roi",
-      version="4.1.8",
+      version="4.1.9",
       author="Steven A. W. Cordwell",
       author_email="steven.cordwell@uqconnect.edu.au",
       url="https://github.com/sawcordwell/pymdptoolbox",
