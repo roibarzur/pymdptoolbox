@@ -829,7 +829,21 @@ class PolicyIteration(MDP):
                 (_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy)
         else:
             # self.V = _sp.linalg.spsolve((_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy)
-            self.V = _sp.linalg.bicg((_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy, atol=1e-3 * self.epsilon, rtol=1e-5, x0=self.V)[0]
+            functions_to_try = [
+                _sp.linalg.bicg,
+                _sp.linalg.bicgstab,
+                _sp.linalg.qmr,
+                _sp.linalg.gmres
+            ]
+            
+            for function in functions_to_try:
+                V, info = function((_sp.eye(self.S, self.S) - self.discount * Ppolicy), Rpolicy, atol=1e-3 * self.epsilon, rtol=1e-7, x0=self.V)
+                if info == 0:
+                    self.V = V
+                    return
+                
+            raise ValueError("Failed to solve the linear system")
+            
     def run(self):
         # Run the policy iteration algorithm.
         self._startRun()
